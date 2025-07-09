@@ -1,345 +1,865 @@
-const express = require('express');
-const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
-const cors = require('cors');
-const { v4: uuidv4 } = require('uuid');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
-
-// Create necessary directories
-const dirs = ['uploads/videos', 'uploads/profiles', 'data'];
-dirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-});
-
-// File storage configuration
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        if (file.fieldname === 'video') {
-            cb(null, 'uploads/videos/');
-        } else if (file.fieldname === 'profile') {
-            cb(null, 'uploads/profiles/');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidShare - Social Video Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-    },
-    filename: function (req, file, cb) {
-        const uniqueName = uuidv4() + path.extname(file.originalname);
-        cb(null, uniqueName);
-    }
-});
 
-const upload = multer({ 
-    storage: storage,
-    limits: {
-        fileSize: 50 * 1024 * 1024 // 50MB limit
-    },
-    fileFilter: (req, file, cb) => {
-        if (file.fieldname === 'video') {
-            if (file.mimetype.startsWith('video/')) {
-                cb(null, true);
-            } else {
-                cb(new Error('Only video files are allowed'));
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: bold;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .profile-pic {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+            cursor: pointer;
+        }
+
+        .username {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .video-feed {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            height: fit-content;
+        }
+
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .upload-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .upload-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .video-item {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .video-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .video-author-pic {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #667eea;
+        }
+
+        .video-author {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .video-time {
+            color: #666;
+            font-size: 14px;
+            margin-left: auto;
+        }
+
+        .video-player {
+            width: 100%;
+            height: 300px;
+            border-radius: 10px;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
+
+        .video-description {
+            margin-bottom: 15px;
+            line-height: 1.5;
+            color: #555;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .action-btn {
+            background: none;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .action-btn:hover {
+            color: #667eea;
+            transform: scale(1.1);
+        }
+
+        .action-btn.liked {
+            color: #e74c3c;
+        }
+
+        .comments-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .comment-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 25px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .comment-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .comment {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .comment-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .comment-content {
+            flex: 1;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .comment-text {
+            font-size: 14px;
+            color: #555;
+            margin-top: 5px;
+        }
+
+        .profile-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .profile-modal.active {
+            display: flex;
+        }
+
+        .profile-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .profile-edit {
+            text-align: center;
+        }
+
+        .profile-edit h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .edit-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .edit-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .save-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .upload-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .upload-modal.active {
+            display: flex;
+        }
+
+        .upload-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .file-input:hover {
+            background: #f8f9ff;
+        }
+
+        .video-preview {
+            width: 100%;
+            height: 200px;
+            border-radius: 10px;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
+
+        .trending-section {
+            margin-bottom: 30px;
+        }
+
+        .trending-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .trending-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .trending-number {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .trending-info {
+            flex: 1;
+        }
+
+        .trending-hashtag {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .trending-count {
+            color: #666;
+            font-size: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
             }
-        } else if (file.fieldname === 'profile') {
-            if (file.mimetype.startsWith('image/')) {
-                cb(null, true);
-            } else {
-                cb(new Error('Only image files are allowed'));
+            
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .container {
+                padding: 10px;
             }
         }
-    }
-});
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">VidShare</div>
+            <div class="user-info">
+                <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjUiIGN5PSIyNSIgcj0iMjUiIGZpbGw9IiM2NjdlZWEiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAxOGMtNC40MSAwLTgtMy41OS04LThzMy41OS04IDgtOCA4IDMuNTkgOCA4LTMuNTkgOC04IDh6bTAtMTRjLTEuMDkgMC0yIC44OS0yIDJ2NGMwIDEuMTEuOTEgMiAyIDJzMi0uODkgMi0yVjhjMC0xLjExLS45MS0yLTItMnoiLz4KPC9zdmc+Cjwvc3ZnPgo=" alt="Profile" class="profile-pic" id="profilePic">
+                <span class="username" id="username">john_doe</span>
+            </div>
+        </header>
 
-// Data files
-const USERS_FILE = 'data/users.json';
-const VIDEOS_FILE = 'data/videos.json';
-const LOGS_FILE = 'data/logs.json';
+        <div class="main-content">
+            <div class="video-feed">
+                <div id="videoContainer"></div>
+            </div>
 
-// Helper functions
-function readJSONFile(filename) {
-    try {
-        if (fs.existsSync(filename)) {
-            const data = fs.readFileSync(filename, 'utf8');
-            return JSON.parse(data);
-        }
-        return [];
-    } catch (error) {
-        console.error(`Error reading ${filename}:`, error);
-        return [];
-    }
-}
+            <div class="sidebar">
+                <div class="upload-section">
+                    <h3>Share Your Video</h3>
+                    <button class="upload-btn" id="uploadBtn">📹 Upload Video</button>
+                </div>
 
-function writeJSONFile(filename, data) {
-    try {
-        fs.writeFileSync(filename, JSON.stringify(data, null, 2));
-        return true;
-    } catch (error) {
-        console.error(`Error writing ${filename}:`, error);
-        return false;
-    }
-}
+                <div class="trending-section">
+                    <h3>Trending</h3>
+                    <div class="trending-item">
+                        <div class="trending-number">1</div>
+                        <div class="trending-info">
+                            <div class="trending-hashtag">#viral</div>
+                            <div class="trending-count">2.1M videos</div>
+                        </div>
+                    </div>
+                    <div class="trending-item">
+                        <div class="trending-number">2</div>
+                        <div class="trending-info">
+                            <div class="trending-hashtag">#funny</div>
+                            <div class="trending-count">1.8M videos</div>
+                        </div>
+                    </div>
+                    <div class="trending-item">
+                        <div class="trending-number">3</div>
+                        <div class="trending-info">
+                            <div class="trending-hashtag">#dance</div>
+                            <div class="trending-count">1.5M videos</div>
+                        </div>
+                    </div>
+                    <div class="trending-item">
+                        <div class="trending-number">4</div>
+                        <div class="trending-info">
+                            <div class="trending-hashtag">#music</div>
+                            <div class="trending-count">1.2M videos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-function logInteraction(action, userId, videoId = null, data = null) {
-    const logs = readJSONFile(LOGS_FILE);
-    const logEntry = {
-        id: uuidv4(),
-        timestamp: new Date().toISOString(),
-        userId: userId,
-        action: action,
-        videoId: videoId,
-        data: data
-    };
-    
-    logs.push(logEntry);
-    
-    // Keep only last 10000 entries
-    if (logs.length > 10000) {
-        logs.splice(0, logs.length - 10000);
-    }
-    
-    writeJSONFile(LOGS_FILE, logs);
-}
+    <!-- Profile Modal -->
+    <div class="profile-modal" id="profileModal">
+        <div class="profile-content">
+            <button class="close-modal" id="closeModal">&times;</button>
+            <div class="profile-edit">
+                <h3>Edit Profile</h3>
+                <input type="text" class="edit-input" id="editUsername" placeholder="Username">
+                <input type="file" class="edit-input" id="editProfilePic" accept="image/*">
+                <button class="save-btn" id="saveProfile">Save Changes</button>
+            </div>
+        </div>
+    </div>
 
-// API Routes
+    <!-- Upload Modal -->
+    <div class="upload-modal" id="uploadModal">
+        <div class="upload-content">
+            <button class="close-modal" id="closeUpload">&times;</button>
+            <div class="upload-section">
+                <h3>Upload New Video</h3>
+                <div class="file-input" id="fileInput">
+                    <input type="file" id="videoFile" accept="video/*" style="display: none;">
+                    <p>Click to select a video file</p>
+                </div>
+                <video id="videoPreview" class="video-preview" style="display: none;" controls></video>
+                <textarea class="edit-input" id="videoDescription" placeholder="Write a caption..." rows="3"></textarea>
+                <button class="save-btn" id="uploadVideo">Share Video</button>
+            </div>
+        </div>
+    </div>
 
-// Get all videos
-app.get('/api/videos', (req, res) => {
-    const videos = readJSONFile(VIDEOS_FILE);
-    res.json(videos);
-});
-
-// Get video by ID
-app.get('/api/videos/:id', (req, res) => {
-    const videos = readJSONFile(VIDEOS_FILE);
-    const video = videos.find(v => v.id === req.params.id);
-    
-    if (!video) {
-        return res.status(404).json({ error: 'Video not found' });
-    }
-    
-    res.json(video);
-});
-
-// Upload new video
-app.post('/api/videos', upload.single('video'), (req, res) => {
-    try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'No video file provided' });
-        }
-        
-        const { description, username } = req.body;
-        const videos = readJSONFile(VIDEOS_FILE);
-        
-        const newVideo = {
-            id: uuidv4(),
-            author: username,
-            authorPic: `/uploads/profiles/${username}.jpg`, // Default or user profile
-            description: description || '',
-            videoSrc: `/uploads/videos/${req.file.filename}`,
-            timestamp: new Date().toISOString(),
-            likes: 0,
-            comments: [],
-            liked: false,
-            views: 0
+    <script>
+        // App state
+        let currentUser = {
+            username: 'john_doe',
+            profilePic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjUiIGN5PSIyNSIgcj0iMjUiIGZpbGw9IiM2NjdlZWEiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAxOGMtNC40MSAwLTgtMy41OS04LThzMy41OS04IDgtOCA4IDMuNTkgOCA4LTMuNTkgOC04IDh6bTAtMTRjLTEuMDkgMC0yIC44OS0yIDJ2NGMwIDEuMTEuOTEgMiAyIDJzMi0uODkgMi0yVjhjMC0xLjExLS45MS0yLTItMnoiLz4KPC9zdmc+Cjwvc3ZnPgo='
         };
-        
-        videos.unshift(newVideo);
-        writeJSONFile(VIDEOS_FILE, videos);
-        
-        // Log the upload
-        logInteraction('upload', username, newVideo.id);
-        
-        res.json({ success: true, video: newVideo });
-    } catch (error) {
-        console.error('Error uploading video:', error);
-        res.status(500).json({ error: 'Failed to upload video' });
-    }
-});
 
-// Like/Unlike video
-app.post('/api/videos/:id/like', (req, res) => {
-    const { username } = req.body;
-    const videos = readJSONFile(VIDEOS_FILE);
-    const video = videos.find(v => v.id === req.params.id);
-    
-    if (!video) {
-        return res.status(404).json({ error: 'Video not found' });
-    }
-    
-    // Toggle like
-    video.liked = !video.liked;
-    video.likes += video.liked ? 1 : -1;
-    
-    writeJSONFile(VIDEOS_FILE, videos);
-    
-    // Log the interaction
-    logInteraction('like', username, video.id, video.liked);
-    
-    res.json({ success: true, liked: video.liked, likes: video.likes });
-});
+        let videos = [
+            {
+                id: 1,
+                author: 'sarah_dance',
+                authorPic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNlNzRjM2MiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAxOGMtNC40MSAwLTgtMy41OS04LThzMy41OS04IDgtOCA4IDMuNTkgOCA4LTMuNTkgOC04IDh6bTAtMTRjLTEuMDkgMC0yIC44OS0yIDJ2NGMwIDEuMTEuOTEgMiAyIDJzMi0uODkgMi0yVjhjMC0xLjExLS45MS0yLTItMnoiLz4KPC9zdmc+Cjwvc3ZnPgo=',
+                description: 'Just learned this amazing dance routine! 💃 #dance #viral #fyp',
+                videoSrc: 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_1mb.mp4',
+                timestamp: '2 hours ago',
+                likes: 1542,
+                comments: [
+                    { author: 'mike_cool', text: 'Amazing moves! 🔥', authorPic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAzMCAzMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNSIgY3k9IjE1IiByPSIxNSIgZmlsbD0iIzJlY2M3MSIvPjwvc3ZnPg==' },
+                    { author: 'anna_star', text: 'Can you teach me this? 😍', authorPic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAzMCAzMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNSIgY3k9IjE1IiByPSIxNSIgZmlsbD0iI2Y5Y2E0ZiIvPjwvc3ZnPg==' }
+                ],
+                liked: false
+            },
+            {
+                id: 2,
+                author: 'comedy_king',
+                authorPic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNmOWNhNGYiLz4KPHN2ZyB4PSI1IiB5PSI1IiB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPgo8cGF0aCBkPSJNMTIgMkM2LjQ4IDIgMiA2LjQ4IDIgMTJzNC40OCAxMCAxMCAxMCAxMC00LjQ4IDEwLTEwUzE3LjUyIDIgMTIgMnptMCAxOGMtNC40MSAwLTgtMy41OS04LThzMy41OS04IDgtOCA4IDMuNTkgOCA4LTMuNTkgOC04IDh6bTAtMTRjLTEuMDkgMC0yIC44OS0yIDJ2NGMwIDEuMTEuOTEgMiAyIDJzMi0uODkgMi0yVjhjMC0xLjExLS45MS0yLTItMnoiLz4KPC9zdmc+Cjwvc3ZnPgo=',
+                description: 'When you realize its Monday tomorrow 😭 #funny #relatable #mood',
+                videoSrc: 'https://sample-videos.com/zip/10/mp4/SampleVideo_1280x720_2mb.mp4',
+                timestamp: '5 hours ago',
+                likes: 2847,
+                comments: [
+                    { author: 'laugh_lover', text: 'This is so me! 😂', authorPic: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHZpZXdCb3g9IjAgMCAzMCAzMCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNSIgY3k9IjE1IiByPSIxNSIgZmlsbD0iIzk1NjNkYyIvPjwvc3ZnPg==' }
+                ],
+                liked: true
+            }
+        ];
 
-// Add comment to video
-app.post('/api/videos/:id/comment', (req, res) => {
-    const { username, text, userPic } = req.body;
-    const videos = readJSONFile(VIDEOS_FILE);
-    const video = videos.find(v => v.id === req.params.id);
-    
-    if (!video) {
-        return res.status(404).json({ error: 'Video not found' });
-    }
-    
-    const newComment = {
-        id: uuidv4(),
-        author: username,
-        text: text,
-        authorPic: userPic,
-        timestamp: new Date().toISOString()
-    };
-    
-    video.comments.push(newComment);
-    writeJSONFile(VIDEOS_FILE, videos);
-    
-    // Log the interaction
-    logInteraction('comment', username, video.id, text);
-    
-    res.json({ success: true, comment: newComment });
-});
+        // DOM elements
+        const videoContainer = document.getElementById('videoContainer');
+        const profilePic = document.getElementById('profilePic');
+        const username = document.getElementById('username');
+        const profileModal = document.getElementById('profileModal');
+        const uploadModal = document.getElementById('uploadModal');
+        const uploadBtn = document.getElementById('uploadBtn');
 
-// Update user profile
-app.post('/api/users/:username/profile', upload.single('profile'), (req, res) => {
-    try {
-        const { username } = req.params;
-        const { newUsername } = req.body;
-        
-        const users = readJSONFile(USERS_FILE);
-        let user = users.find(u => u.username === username);
-        
-        if (!user) {
-            user = {
-                id: uuidv4(),
-                username: username,
-                profilePic: '/uploads/profiles/default.jpg',
-                joinDate: new Date().toISOString()
+        // Initialize app
+        function init() {
+            loadProfile();
+            renderVideos();
+            setupEventListeners();
+        }
+
+        function loadProfile() {
+            const savedProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+            if (savedProfile.username) {
+                currentUser = savedProfile;
+                profilePic.src = currentUser.profilePic;
+                username.textContent = currentUser.username;
+            }
+        }
+
+        function saveProfile() {
+            localStorage.setItem('userProfile', JSON.stringify(currentUser));
+        }
+
+        function renderVideos() {
+            videoContainer.innerHTML = '';
+            videos.forEach(video => {
+                const videoElement = createVideoElement(video);
+                videoContainer.appendChild(videoElement);
+            });
+        }
+
+        function createVideoElement(video) {
+            const videoDiv = document.createElement('div');
+            videoDiv.className = 'video-item';
+            videoDiv.innerHTML = `
+                <div class="video-header">
+                    <img src="${video.authorPic}" alt="${video.author}" class="video-author-pic">
+                    <div class="video-author">${video.author}</div>
+                    <div class="video-time">${video.timestamp}</div>
+                </div>
+                <video class="video-player" controls>
+                    <source src="${video.videoSrc}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+                <div class="video-description">${video.description}</div>
+                <div class="video-actions">
+                    <button class="action-btn like-btn ${video.liked ? 'liked' : ''}" data-video-id="${video.id}">
+                        ❤️ ${video.likes}
+                    </button>
+                    <button class="action-btn comment-btn" data-video-id="${video.id}">
+                        💬 ${video.comments.length}
+                    </button>
+                    <button class="action-btn share-btn" data-video-id="${video.id}">
+                        📤 Share
+                    </button>
+                </div>
+                <div class="comments-section">
+                    <input type="text" class="comment-input" placeholder="Add a comment..." data-video-id="${video.id}">
+                    <div class="comments-list">
+                        ${video.comments.map(comment => `
+                            <div class="comment">
+                                <img src="${comment.authorPic}" alt="${comment.author}" class="comment-avatar">
+                                <div class="comment-content">
+                                    <div class="comment-author">${comment.author}</div>
+                                    <div class="comment-text">${comment.text}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            return videoDiv;
+        }
+
+        function setupEventListeners() {
+            // Profile modal
+            profilePic.addEventListener('click', () => {
+                document.getElementById('editUsername').value = currentUser.username;
+                profileModal.classList.add('active');
+            });
+
+            document.getElementById('closeModal').addEventListener('click', () => {
+                profileModal.classList.remove('active');
+            });
+
+            document.getElementById('saveProfile').addEventListener('click', () => {
+                const newUsername = document.getElementById('editUsername').value;
+                const newProfilePic = document.getElementById('editProfilePic').files[0];
+                
+                if (newUsername) {
+                    currentUser.username = newUsername;
+                    username.textContent = newUsername;
+                }
+                
+                if (newProfilePic) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        currentUser.profilePic = e.target.result;
+                        profilePic.src = e.target.result;
+                        saveProfile();
+                    };
+                    reader.readAsDataURL(newProfilePic);
+                }
+                
+                saveProfile();
+                profileModal.classList.remove('active');
+            });
+
+            // Upload modal
+            uploadBtn.addEventListener('click', () => {
+                uploadModal.classList.add('active');
+            });
+
+            document.getElementById('closeUpload').addEventListener('click', () => {
+                uploadModal.classList.remove('active');
+            });
+
+            document.getElementById('fileInput').addEventListener('click', () => {
+                document.getElementById('videoFile').click();
+            });
+
+            document.getElementById('videoFile').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const preview = document.getElementById('videoPreview');
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            document.getElementById('uploadVideo').addEventListener('click', () => {
+                const videoFile = document.getElementById('videoFile').files[0];
+                const description = document.getElementById('videoDescription').value;
+                
+                if (videoFile && description) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const newVideo = {
+                            id: videos.length + 1,
+                            author: currentUser.username,
+                            authorPic: currentUser.profilePic,
+                            description: description,
+                            videoSrc: e.target.result,
+                            timestamp: 'Just now',
+                            likes: 0,
+                            comments: [],
+                            liked: false
+                        };
+                        
+                        videos.unshift(newVideo);
+                        renderVideos();
+                        setupVideoEventListeners();
+                        uploadModal.classList.remove('active');
+                        
+                        // Reset form
+                        document.getElementById('videoFile').value = '';
+                        document.getElementById('videoDescription').value = '';
+                        document.getElementById('videoPreview').style.display = 'none';
+                    };
+                    reader.readAsDataURL(videoFile);
+                }
+            });
+
+            // Video interactions
+            setupVideoEventListeners();
+
+            // Close modals on outside click
+            profileModal.addEventListener('click', (e) => {
+                if (e.target === profileModal) {
+                    profileModal.classList.remove('active');
+                }
+            });
+
+            uploadModal.addEventListener('click', (e) => {
+                if (e.target === uploadModal) {
+                    uploadModal.classList.remove('active');
+                }
+            });
+        }
+
+        function setupVideoEventListeners() {
+            // Like buttons
+            document.querySelectorAll('.like-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const videoId = parseInt(e.target.dataset.videoId);
+                    const video = videos.find(v => v.id === videoId);
+                    
+                    if (video) {
+                        video.liked = !video.liked;
+                        video.likes += video.liked ? 1 : -1;
+                        
+                        btn.classList.toggle('liked');
+                        btn.innerHTML = `❤️ ${video.likes}`;
+                        
+                        // Log interaction
+                        logInteraction('like', videoId, video.liked);
+                    }
+                });
+            });
+
+            // Comment inputs
+            document.querySelectorAll('.comment-input').forEach(input => {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                        const videoId = parseInt(e.target.dataset.videoId);
+                        const video = videos.find(v => v.id === videoId);
+                        
+                        if (video) {
+                            const newComment = {
+                                author: currentUser.username,
+                                text: e.target.value.trim(),
+                                authorPic: currentUser.profilePic
+                            };
+                            
+                            video.comments.push(newComment);
+                            renderVideos();
+                            setupVideoEventListeners();
+                            
+                            // Log interaction
+                            logInteraction('comment', videoId, newComment.text);
+                        }
+                    }
+                });
+            });
+
+            // Share buttons
+            document.querySelectorAll('.share-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const videoId = parseInt(e.target.dataset.videoId);
+                    
+                    if (navigator.share) {
+                        navigator.share({
+                            title: 'Check out this video on VidShare!',
+                            url: window.location.href
+                        });
+                    } else {
+                        // Fallback for browsers without Web Share API
+                        const url = window.location.href;
+                        navigator.clipboard.writeText(url).then(() => {
+                            btn.innerHTML = '✅ Copied!';
+                            setTimeout(() => {
+                                btn.innerHTML = '📤 Share';
+                            }, 2000);
+                        });
+                    }
+                    
+                    // Log interaction
+                    logInteraction('share', videoId);
+                });
+            });
+        }
+
+        // Logging system
+        function logInteraction(action, videoId, data = null) {
+            const logEntry = {
+                timestamp: new Date().toISOString(),
+                user: currentUser.username,
+                action: action,
+                videoId: videoId,
+                data: data
             };
-            users.push(user);
+            
+            // Get existing logs
+            const logs = JSON.parse(localStorage.getItem('interactionLogs') || '[]');
+            logs.push(logEntry);
+            
+            // Keep only last 1000 entries
+            if (logs.length > 1000) {
+                logs.splice(0, logs.length - 1000);
+            }
+            
+            localStorage.setItem('interactionLogs', JSON.stringify(logs));
+            console.log('Interaction logged:', logEntry);
         }
-        
-        // Update username if provided
-        if (newUsername && newUsername !== username) {
-            user.username = newUsername;
-        }
-        
-        // Update profile picture if provided
-        if (req.file) {
-            user.profilePic = `/uploads/profiles/${req.file.filename}`;
-        }
-        
-        writeJSONFile(USERS_FILE, users);
-        
-        // Log the update
-        logInteraction('profile_update', user.username);
-        
-        res.json({ success: true, user: user });
-    } catch (error) {
-        console.error('Error updating profile:', error);
-        res.status(500).json({ error: 'Failed to update profile' });
-    }
-});
 
-// Get user profile
-app.get('/api/users/:username', (req, res) => {
-    const users = readJSONFile(USERS_FILE);
-    const user = users.find(u => u.username === req.params.username);
-    
-    if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json(user);
-});
+        // Auto-play videos when they come into view
+        function setupVideoObserver() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target;
+                    if (entry.isIntersecting) {
+                        video.play();
+                    } else {
+                        video.pause();
+                    }
+                });
+            }, {
+                threshold: 0.5
+            });
 
-// Get trending hashtags
-app.get('/api/trending', (req, res) => {
-    const videos = readJSONFile(VIDEOS_FILE);
-    const hashtags = {};
-    
-    videos.forEach(video => {
-        const tags = video.description.match(/#\w+/g) || [];
-        tags.forEach(tag => {
-            hashtags[tag] = (hashtags[tag] || 0) + 1;
+            document.querySelectorAll('.video-player').forEach(video => {
+                observer.observe(video);
+            });
+        }
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            setupVideoObserver();
         });
-    });
-    
-    const trending = Object.entries(hashtags)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 10)
-        .map(([tag, count]) => ({ tag, count }));
-    
-    res.json(trending);
-});
 
-// Get analytics/logs
-app.get('/api/analytics', (req, res) => {
-    const logs = readJSONFile(LOGS_FILE);
-    const analytics = {
-        totalInteractions: logs.length,
-        actionCounts: {},
-        userActivity: {},
-        recentActivity: logs.slice(-100)
-    };
-    
-    logs.forEach(log => {
-        analytics.actionCounts[log.action] = (analytics.actionCounts[log.action] || 0) + 1;
-        analytics.userActivity[log.userId] = (analytics.userActivity[log.userId] || 0) + 1;
-    });
-    
-    res.json(analytics);
-});
-
-// Search videos
-app.get('/api/search', (req, res) => {
-    const { q } = req.query;
-    const videos = readJSONFile(VIDEOS_FILE);
-    
-    if (!q) {
-        return res.json([]);
-    }
-    
-    const results = videos.filter(video =>
-        video.description.toLowerCase().includes(q.toLowerCase()) ||
-        video.author.toLowerCase().includes(q.toLowerCase())
-    );
-    
-    res.json(results);
-});
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-    console.error('Error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-});
-
-// Serve the main HTML file
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Start server
-app.listen(PORT, () => {
-    console.log(`VidShare server running on port ${PORT}`);
-    console.log(`Visit http://localhost:${PORT} to use the app`);
-    
-    // Log server start
-    logInteraction('server_start', 'system');
-});
-
-module.exports = app;
+        // Add some sample interactions for demo
+        setTimeout(() => {
+            logInteraction('app_start', null, 'User opened VidShare');
+        }, 1000);
+    </script>
+</body>
+</html>
